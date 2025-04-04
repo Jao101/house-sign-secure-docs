@@ -9,7 +9,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import Upload from "./pages/Upload";
+import UploadPage from "./pages/Upload";
 import ViewDocument from "./pages/ViewDocument";
 import NotFound from "./pages/NotFound";
 
@@ -27,7 +27,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/upload" element={<Upload />} />
+            <Route path="/upload" element={<UploadPage />} />
             <Route path="/document/:id" element={<ViewDocument />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

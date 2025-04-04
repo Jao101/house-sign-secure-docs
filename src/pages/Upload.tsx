@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Upload, FileText, FilePlus, X, Plus } from "lucide-react";
+import { FileText, FilePlus, X, Plus, UploadIcon } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
 import { useToast } from "@/components/ui/use-toast";
 
-const Upload = () => {
+const UploadPage = () => {
   const [documentTitle, setDocumentTitle] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -177,7 +177,7 @@ const Upload = () => {
                           ) : (
                             <div className="space-y-2">
                               <div className="flex flex-col items-center justify-center">
-                                <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                                <UploadIcon className="h-8 w-8 text-gray-400 mb-2" />
                                 <p className="font-medium">Drag and drop or click to upload</p>
                                 <p className="text-sm text-gray-500">PDF, DOC, DOCX (max 10MB)</p>
                               </div>
@@ -276,4 +276,5 @@ const Upload = () => {
   );
 };
 
-export default Upload;
+export default UploadPage;
+
