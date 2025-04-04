@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import AuthGuard from "@/components/AuthGuard";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import PDFViewer from "@/components/PDFViewer";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,11 +21,12 @@ const ViewDocument = () => {
   const [isSignatureMode, setIsSignatureMode] = useState(false);
   const [document, setDocument] = useState<any>(null);
   
+  const samplePdfUrl = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+  
   useEffect(() => {
     if (documents && id) {
       const doc = documents.find(d => d.id === id);
       if (doc) {
-        // Convert document to include signers as objects if they're just email strings
         const enhancedDoc = {
           ...doc,
           signers: Array.isArray(doc.signers) ? doc.signers.map(signer => {
@@ -62,7 +63,6 @@ const ViewDocument = () => {
   const handleSignDocument = () => {
     if (!document || !user) return;
     
-    // Update the signer status
     const updatedSigners = document.signers.map((signer: any) => {
       if (signer.email === user.email) {
         return {
@@ -74,19 +74,15 @@ const ViewDocument = () => {
       return signer;
     });
 
-    // Check if all signers have signed
     const allSigned = updatedSigners.every((signer: any) => signer.status === "signed");
     
-    // Update the document status if all have signed
     const newStatus = allSigned ? "completed" : "awaiting_signatures";
     
-    // Update the document in global state
     updateDocument(document.id, { 
       signers: updatedSigners,
       status: newStatus
     });
     
-    // Update local state
     setDocument({
       ...document,
       signers: updatedSigners,
@@ -101,7 +97,6 @@ const ViewDocument = () => {
     });
   };
   
-  // Drawing signature functionality
   const [isDrawing, setIsDrawing] = useState(false);
   
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -266,14 +261,20 @@ const ViewDocument = () => {
                     </div>
                   </Card>
                 ) : (
-                  <Card className="h-[600px] flex items-center justify-center bg-gray-50">
-                    <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
-                      {/* In a real app, this would be an actual document viewer */}
-                      <FilePen className="h-16 w-16 text-gray-300 mb-4" />
-                      <p className="text-gray-500">Document preview would be displayed here</p>
-                      <p className="text-sm text-gray-400 mt-2">PDF Viewer not available in demo</p>
-                    </CardContent>
-                  </Card>
+                  <div className="h-[600px]">
+                    <PDFViewer 
+                      file={samplePdfUrl}
+                      fallback={
+                        <Card className="h-full flex items-center justify-center bg-gray-50">
+                          <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
+                            <FilePen className="h-16 w-16 text-gray-300 mb-4" />
+                            <p className="text-gray-500">No document preview available</p>
+                            <p className="text-sm text-gray-400 mt-2">Please upload a PDF document</p>
+                          </CardContent>
+                        </Card>
+                      }
+                    />
+                  </div>
                 )}
               </div>
 
