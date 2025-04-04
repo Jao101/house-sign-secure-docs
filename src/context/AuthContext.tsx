@@ -1,201 +1,176 @@
 
-import React, { createContext, useState, useContext, useEffect } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import { Document } from '@/components/DocumentCard';
 
-type User = {
-  id: string;
+interface User {
   email: string;
-  name: string;
-};
+  firstName?: string;
+  lastName?: string;
+}
 
-type AuthContextType = {
+interface AuthContextType {
   user: User | null;
-  loading: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  signup: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => void;
-  isAuthenticated: boolean;
-};
+  documents: Document[];
+  addDocument: (document: Document) => void;
+  updateDocument: (documentId: string, updates: Partial<Document>) => void;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Constants for local storage keys
-const USER_STORAGE_KEY = "housesign_user";
-const REGISTERED_USERS_KEY = "housesign_registered_users";
-
-// Type for storing registered users
-type RegisteredUser = {
-  id: string;
-  email: string;
-  name: string;
-  password: string;
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+// Mock user database
+const mockUsers = [
+  {
+    email: 'test@example.com',
+    password: 'password123',
+    firstName: 'Test',
+    lastName: 'User'
+  }
+];
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [documents, setDocuments] = useState<Document[]>([
+    {
+      id: "doc-1",
+      title: "Purchase Agreement",
+      status: "completed",
+      updatedAt: new Date(2025, 3, 1),
+      signers: ["john@example.com", "sara@example.com"],
+    },
+    {
+      id: "doc-2",
+      title: "Rental Contract",
+      status: "awaiting_signatures",
+      updatedAt: new Date(2025, 3, 2), 
+      signers: ["mike@example.com"],
+    },
+    {
+      id: "doc-3",
+      title: "Disclosure Statement",
+      status: "draft",
+      updatedAt: new Date(2025, 3, 3),
+      signers: [],
+    },
+  ]);
 
   useEffect(() => {
-    // Check for stored auth data on mount
-    const storedUser = localStorage.getItem(USER_STORAGE_KEY);
+    // Check for existing session
+    const storedUser = localStorage.getItem('user');
+    const storedDocuments = localStorage.getItem('documents');
+    
     if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error("Failed to parse stored user data");
-        localStorage.removeItem(USER_STORAGE_KEY);
-      }
+      setUser(JSON.parse(storedUser));
     }
-    setLoading(false);
+    
+    if (storedDocuments) {
+      const parsedDocuments = JSON.parse(storedDocuments);
+      // Convert string dates back to Date objects
+      const documentsWithDates = parsedDocuments.map((doc: any) => ({
+        ...doc,
+        updatedAt: new Date(doc.updatedAt)
+      }));
+      setDocuments(documentsWithDates);
+    }
+    
+    setIsLoading(false);
   }, []);
 
-  // Helper function to get registered users
-  const getRegisteredUsers = (): RegisteredUser[] => {
-    const usersJson = localStorage.getItem(REGISTERED_USERS_KEY);
-    if (!usersJson) return [];
-    
-    try {
-      return JSON.parse(usersJson);
-    } catch (error) {
-      console.error("Failed to parse registered users data");
-      return [];
+  // Save documents to localStorage whenever they change
+  useEffect(() => {
+    if (documents.length > 0) {
+      localStorage.setItem('documents', JSON.stringify(documents));
     }
+  }, [documents]);
+
+  const addDocument = (document: Document) => {
+    setDocuments(prevDocuments => [...prevDocuments, document]);
   };
 
-  // Helper function to save registered users
-  const saveRegisteredUsers = (users: RegisteredUser[]): void => {
-    localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(users));
+  const updateDocument = (documentId: string, updates: Partial<Document>) => {
+    setDocuments(prevDocuments => 
+      prevDocuments.map(doc => 
+        doc.id === documentId ? { ...doc, ...updates } : doc
+      )
+    );
   };
 
   const login = async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      if (!email || !password) {
-        throw new Error("Email and password are required");
-      }
-      
-      const registeredUsers = getRegisteredUsers();
-      const foundUser = registeredUsers.find(
-        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-      );
-      
-      if (!foundUser) {
-        throw new Error("Invalid email or password");
-      }
-      
-      // Create a user object without the password
-      const authenticatedUser: User = {
-        id: foundUser.id,
-        email: foundUser.email,
-        name: foundUser.name,
-      };
-      
-      // Store user in local storage
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authenticatedUser));
-      setUser(authenticatedUser);
-      
-      toast({
-        title: "Login successful",
-        description: "Welcome back to HouseSign!",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message || "Please check your credentials and try again",
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setLoading(false);
+    setIsLoading(true);
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const foundUser = mockUsers.find(u => u.email === email && u.password === password);
+    
+    if (!foundUser) {
+      setIsLoading(false);
+      throw new Error('Invalid email or password');
     }
+    
+    const { password: _, ...userWithoutPassword } = foundUser;
+    setUser(userWithoutPassword);
+    localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+    
+    setIsLoading(false);
   };
 
-  const signup = async (email: string, password: string, name: string) => {
-    setLoading(true);
-    try {
-      if (!email || !password || !name) {
-        throw new Error("All fields are required");
-      }
-      
-      if (password.length < 8) {
-        throw new Error("Password must be at least 8 characters long");
-      }
-      
-      const registeredUsers = getRegisteredUsers();
-      
-      // Check if email already exists
-      if (registeredUsers.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
-        throw new Error("Email already registered");
-      }
-      
-      // Create a new user
-      const newUser: RegisteredUser = {
-        id: Math.random().toString(36).substring(2, 15),
-        email,
-        name,
-        password,
-      };
-      
-      // Save the new user
-      saveRegisteredUsers([...registeredUsers, newUser]);
-      
-      // Create an authenticated user object (without password)
-      const authenticatedUser: User = {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-      };
-      
-      // Store user in local storage
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authenticatedUser));
-      setUser(authenticatedUser);
-      
-      toast({
-        title: "Account created",
-        description: "Welcome to HouseSign!",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Signup failed",
-        description: error.message || "Please try again",
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setLoading(false);
+  const signup = async (email: string, password: string, firstName?: string, lastName?: string) => {
+    setIsLoading(true);
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Check if user already exists
+    if (mockUsers.some(u => u.email === email)) {
+      setIsLoading(false);
+      throw new Error('User already exists with this email');
     }
+    
+    // In a real app, this would be saved to a database
+    const newUser = { email, password, firstName, lastName };
+    mockUsers.push(newUser);
+    
+    const { password: _, ...userWithoutPassword } = newUser;
+    setUser(userWithoutPassword);
+    localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+    
+    setIsLoading(false);
   };
 
   const logout = () => {
-    localStorage.removeItem(USER_STORAGE_KEY);
     setUser(null);
-    toast({
-      title: "Logged out",
-      description: "You have been logged out of HouseSign",
-    });
+    localStorage.removeItem('user');
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        signup,
-        logout,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={{ 
+      user, 
+      isLoading, 
+      login, 
+      signup, 
+      logout,
+      documents,
+      addDocument,
+      updateDocument
+    }}>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 };

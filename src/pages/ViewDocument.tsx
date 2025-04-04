@@ -1,38 +1,180 @@
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock } from "lucide-react";
+import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock, Pen } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/components/ui/use-toast";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { documents, updateDocument, user } = useAuth();
+  const { toast } = useToast();
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isSignatureMode, setIsSignatureMode] = useState(false);
+  const [document, setDocument] = useState<any>(null);
   
-  // In a real app, fetch document data from API
-  const [document] = useState({
-    id: id,
-    title: id === "doc-1" ? "Purchase Agreement" 
-          : id === "doc-2" ? "Rental Contract" 
-          : "Disclosure Statement",
-    status: id === "doc-1" ? "completed" 
-           : id === "doc-2" ? "awaiting_signatures" 
-           : "draft",
-    createdAt: new Date(2025, 3, 1),
-    signers: [
-      { name: "John Smith", email: "john@example.com", status: "signed", timestamp: new Date(2025, 3, 2) },
-      id === "doc-1" ? 
-        { name: "Sara Miller", email: "sara@example.com", status: "signed", timestamp: new Date(2025, 3, 3) } :
-        id === "doc-2" ? 
-          { name: "Mike Johnson", email: "mike@example.com", status: "pending", timestamp: null } :
-          null
-    ].filter(Boolean),
-  });
+  useEffect(() => {
+    if (documents && id) {
+      const doc = documents.find(d => d.id === id);
+      if (doc) {
+        // Convert document to include signers as objects if they're just email strings
+        const enhancedDoc = {
+          ...doc,
+          signers: Array.isArray(doc.signers) ? doc.signers.map(signer => {
+            if (typeof signer === 'string') {
+              return {
+                email: signer,
+                name: signer.split('@')[0],
+                status: "pending",
+                timestamp: null
+              };
+            }
+            return signer;
+          }) : []
+        };
+        setDocument(enhancedDoc);
+      }
+    }
+  }, [documents, id]);
+
+  const handleSignStart = () => {
+    setIsSignatureMode(true);
+  };
+
+  const handleSignCancel = () => {
+    setIsSignatureMode(false);
+    if (signatureCanvasRef.current) {
+      const context = signatureCanvasRef.current.getContext('2d');
+      if (context) {
+        context.clearRect(0, 0, signatureCanvasRef.current.width, signatureCanvasRef.current.height);
+      }
+    }
+  };
+
+  const handleSignDocument = () => {
+    if (!document || !user) return;
+    
+    // Update the signer status
+    const updatedSigners = document.signers.map((signer: any) => {
+      if (signer.email === user.email) {
+        return {
+          ...signer,
+          status: "signed",
+          timestamp: new Date()
+        };
+      }
+      return signer;
+    });
+
+    // Check if all signers have signed
+    const allSigned = updatedSigners.every((signer: any) => signer.status === "signed");
+    
+    // Update the document status if all have signed
+    const newStatus = allSigned ? "completed" : "awaiting_signatures";
+    
+    // Update the document in global state
+    updateDocument(document.id, { 
+      signers: updatedSigners,
+      status: newStatus
+    });
+    
+    // Update local state
+    setDocument({
+      ...document,
+      signers: updatedSigners,
+      status: newStatus
+    });
+    
+    setIsSignatureMode(false);
+    
+    toast({
+      title: "Document signed successfully",
+      description: "Your signature has been added to the document",
+    });
+  };
+  
+  // Drawing signature functionality
+  const [isDrawing, setIsDrawing] = useState(false);
+  
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    setIsDrawing(true);
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    context.beginPath();
+    context.moveTo(clientX - rect.left, clientY - rect.top);
+    context.lineWidth = 3;
+    context.lineCap = 'round';
+    context.strokeStyle = '#1e3a8a';
+  };
+  
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+      e.preventDefault(); // Prevent scrolling when drawing
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    context.lineTo(clientX - rect.left, clientY - rect.top);
+    context.stroke();
+  };
+  
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  if (!document) {
+    return (
+      <AuthGuard>
+        <div className="flex flex-col min-h-screen">
+          <Navbar />
+          <main className="flex-1 flex items-center justify-center">
+            <p>Loading document...</p>
+          </main>
+          <Footer />
+        </div>
+      </AuthGuard>
+    );
+  }
+
+  const canSign = document.signers.some((signer: any) => 
+    signer.email === user?.email && signer.status === "pending"
+  );
 
   return (
     <AuthGuard>
@@ -88,14 +230,51 @@ const ViewDocument = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <Card className="h-[600px] flex items-center justify-center bg-gray-50">
-                  <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
-                    {/* In a real app, this would be an actual document viewer */}
-                    <FilePen className="h-16 w-16 text-gray-300 mb-4" />
-                    <p className="text-gray-500">Document preview would be displayed here</p>
-                    <p className="text-sm text-gray-400 mt-2">PDF Viewer not available in demo</p>
-                  </CardContent>
-                </Card>
+                {isSignatureMode ? (
+                  <Card className="h-[600px] flex flex-col items-center justify-between bg-gray-50 p-6">
+                    <div className="w-full text-center mb-4">
+                      <h3 className="text-lg font-medium">Sign Document</h3>
+                      <p className="text-gray-500">Please draw your signature below</p>
+                    </div>
+                    
+                    <div className="flex-1 w-full flex items-center justify-center border-b border-dashed border-gray-300 mb-4">
+                      <canvas 
+                        ref={signatureCanvasRef}
+                        width={500}
+                        height={200}
+                        className="border border-gray-200 bg-white"
+                        onMouseDown={startDrawing}
+                        onMouseMove={draw}
+                        onMouseUp={stopDrawing}
+                        onMouseLeave={stopDrawing}
+                        onTouchStart={startDrawing}
+                        onTouchMove={draw}
+                        onTouchEnd={stopDrawing}
+                      />
+                    </div>
+                    
+                    <div className="flex gap-4">
+                      <Button variant="outline" onClick={handleSignCancel}>
+                        Clear
+                      </Button>
+                      <Button 
+                        className="bg-housesign-600 hover:bg-housesign-700"
+                        onClick={handleSignDocument}
+                      >
+                        Complete Signing
+                      </Button>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className="h-[600px] flex items-center justify-center bg-gray-50">
+                    <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
+                      {/* In a real app, this would be an actual document viewer */}
+                      <FilePen className="h-16 w-16 text-gray-300 mb-4" />
+                      <p className="text-gray-500">Document preview would be displayed here</p>
+                      <p className="text-sm text-gray-400 mt-2">PDF Viewer not available in demo</p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
               <div>
@@ -232,9 +411,20 @@ const ViewDocument = () => {
                 )}
                 
                 {document.status === "awaiting_signatures" && (
-                  <Button className="w-full mt-4 bg-housesign-600 hover:bg-housesign-700">
-                    Remind Signers
-                  </Button>
+                  <>
+                    {canSign && (
+                      <Button 
+                        className="w-full mt-4 bg-housesign-600 hover:bg-housesign-700"
+                        onClick={handleSignStart}
+                      >
+                        <Pen className="h-4 w-4 mr-2" />
+                        Sign Document
+                      </Button>
+                    )}
+                    <Button className="w-full mt-4" variant="outline">
+                      Remind Signers
+                    </Button>
+                  </>
                 )}
               </div>
             </div>

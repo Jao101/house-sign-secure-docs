@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { Document } from "@/components/DocumentCard";
 
 const UploadPage = () => {
   const [documentTitle, setDocumentTitle] = useState("");
@@ -20,6 +21,7 @@ const UploadPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, addDocument } = useAuth();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -41,7 +43,6 @@ const UploadPage = () => {
   };
 
   const handleFileChange = (file: File) => {
-    // Check file type - accept PDF, DOC, DOCX
     const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     
     if (!validTypes.includes(file.type)) {
@@ -53,7 +54,6 @@ const UploadPage = () => {
       return;
     }
     
-    // Check file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "File too large",
@@ -65,7 +65,6 @@ const UploadPage = () => {
     
     setSelectedFile(file);
     
-    // Extract title from filename
     if (!documentTitle) {
       const fileName = file.name.split('.').slice(0, -1).join('.');
       setDocumentTitle(fileName);
@@ -99,9 +98,19 @@ const UploadPage = () => {
     setIsUploading(true);
     
     try {
-      // In a real application, this would upload to a server
-      // For demo purposes, we'll simulate the upload
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const docId = `doc-${Date.now()}`;
+      
+      const newDocument: Document = {
+        id: docId,
+        title: documentTitle,
+        status: "awaiting_signatures",
+        updatedAt: new Date(),
+        signers: recipients.map(recipient => recipient.email),
+      };
+      
+      addDocument(newDocument);
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       toast({
         title: "Document uploaded successfully",
@@ -277,4 +286,3 @@ const UploadPage = () => {
 };
 
 export default UploadPage;
-

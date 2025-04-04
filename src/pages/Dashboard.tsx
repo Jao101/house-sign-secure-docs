@@ -1,44 +1,18 @@
-
-import React, { useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, FilePlus, FileText } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import DocumentCard, { Document } from "@/components/DocumentCard";
+import DocumentCard from "@/components/DocumentCard";
 import AuthGuard from "@/components/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, documents } = useAuth();
   
-  // Mock documents for demo purposes
-  const [documents, setDocuments] = useState<Document[]>([
-    {
-      id: "doc-1",
-      title: "Purchase Agreement",
-      status: "completed",
-      updatedAt: new Date(2025, 3, 1),
-      signers: ["john@example.com", "sara@example.com"],
-    },
-    {
-      id: "doc-2",
-      title: "Rental Contract",
-      status: "awaiting_signatures",
-      updatedAt: new Date(2025, 3, 2), 
-      signers: ["mike@example.com"],
-    },
-    {
-      id: "doc-3",
-      title: "Disclosure Statement",
-      status: "draft",
-      updatedAt: new Date(2025, 3, 3),
-      signers: [],
-    },
-  ]);
-
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen">
