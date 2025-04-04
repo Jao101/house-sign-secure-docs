@@ -6,11 +6,14 @@ interface User {
   email: string;
   firstName?: string;
   lastName?: string;
+  name?: string; // Added name property
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isAuthenticated: boolean; // Added isAuthenticated property
+  loading: boolean; // Added loading property
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => void;
@@ -39,7 +42,8 @@ const mockUsers = [
     email: 'test@example.com',
     password: 'password123',
     firstName: 'Test',
-    lastName: 'User'
+    lastName: 'User',
+    name: 'Test User' // Added name for consistency
   }
 ];
 
@@ -69,6 +73,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       signers: [],
     },
   ]);
+
+  // Define isAuthenticated computed property
+  const isAuthenticated = user !== null;
+  // Alias isLoading to loading for backward compatibility
+  const loading = isLoading;
 
   useEffect(() => {
     // Check for existing session
@@ -125,8 +134,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     
     const { password: _, ...userWithoutPassword } = foundUser;
-    setUser(userWithoutPassword);
-    localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+    
+    // Ensure the user object has a name property
+    const userWithName = {
+      ...userWithoutPassword,
+      name: userWithoutPassword.name || `${userWithoutPassword.firstName || ''} ${userWithoutPassword.lastName || ''}`.trim()
+    };
+    
+    setUser(userWithName);
+    localStorage.setItem('user', JSON.stringify(userWithName));
     
     setIsLoading(false);
   };
@@ -143,8 +159,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       throw new Error('User already exists with this email');
     }
     
+    // Create name from firstName and lastName
+    const name = firstName && lastName 
+      ? `${firstName} ${lastName}` 
+      : firstName || lastName || email.split('@')[0];
+    
     // In a real app, this would be saved to a database
-    const newUser = { email, password, firstName, lastName };
+    const newUser = { email, password, firstName, lastName, name };
     mockUsers.push(newUser);
     
     const { password: _, ...userWithoutPassword } = newUser;
@@ -163,6 +184,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     <AuthContext.Provider value={{ 
       user, 
       isLoading, 
+      loading, // Include the alias
+      isAuthenticated, // Include computed property
       login, 
       signup, 
       logout,
