@@ -300,7 +300,7 @@ const ViewDocument = () => {
                           
                           <div>
                             <h3 className="text-sm font-medium text-gray-500">Created</h3>
-                            <p className="font-medium">{document.createdAt.toLocaleDateString()}</p>
+                            <p className="font-medium">{document.updatedAt?.toLocaleDateString() || 'N/A'}</p>
                           </div>
                           
                           <div>

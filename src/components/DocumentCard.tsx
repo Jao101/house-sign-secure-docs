@@ -11,6 +11,7 @@ export type Document = {
   title: string;
   status: "draft" | "awaiting_signatures" | "completed";
   updatedAt: Date;
+  createdAt?: Date; // Make createdAt optional
   signers: string[];
 };
 
