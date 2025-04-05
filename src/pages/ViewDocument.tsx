@@ -21,7 +21,7 @@ const ViewDocument = () => {
   const [isSignatureMode, setIsSignatureMode] = useState(false);
   const [document, setDocument] = useState<any>(null);
   
-  const samplePdfUrl = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+  const samplePdfUrl = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf";
   
   useEffect(() => {
     if (documents && id) {

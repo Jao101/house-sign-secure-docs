@@ -1,13 +1,15 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/components/ui/use-toast";
 
 // Set up the worker source for PDF.js
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Using cdnjs instead of unpkg for better reliability
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 interface PDFViewerProps {
   file?: string; // URL to the PDF file
@@ -18,10 +20,37 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, fallback }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
+  const [rotation, setRotation] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<boolean>(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Reset state when file changes
+    if (file) {
+      setNumPages(null);
+      setPageNumber(1);
+      setLoadError(false);
+      setIsLoading(true);
+    }
+  }, [file]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
     setNumPages(numPages);
     setPageNumber(1);
+    setIsLoading(false);
+    setLoadError(false);
+  }
+
+  function onDocumentLoadError(error: Error): void {
+    console.error("PDF load error:", error);
+    setIsLoading(false);
+    setLoadError(true);
+    toast({
+      title: "Error loading PDF",
+      description: "There was a problem loading the document. Please try again later.",
+      variant: "destructive",
+    });
   }
 
   function changePage(offset: number) {
@@ -42,6 +71,10 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, fallback }) => {
       }
       return prevScale;
     });
+  }
+
+  function rotateDocument() {
+    setRotation((prevRotation) => (prevRotation + 90) % 360);
   }
 
   if (!file) {
@@ -92,6 +125,13 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, fallback }) => {
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={rotateDocument}
+          >
+            <RotateCw className="h-4 w-4" />
+          </Button>
         </div>
       </div>
       <ScrollArea className="flex-1">
@@ -99,15 +139,29 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ file, fallback }) => {
           <Document
             file={file}
             onLoadSuccess={onDocumentLoadSuccess}
-            loading={<div className="text-center py-10">Loading document...</div>}
-            error={<div className="text-center py-10 text-red-500">Failed to load PDF</div>}
+            onLoadError={onDocumentLoadError}
+            loading={
+              <div className="flex flex-col items-center justify-center py-10">
+                <Loader2 className="h-10 w-10 animate-spin text-gray-400 mb-4" />
+                <p>Loading document...</p>
+              </div>
+            }
+            error={
+              <div className="text-center py-10 text-red-500">
+                <p className="font-medium mb-2">Failed to load PDF</p>
+                <p className="text-sm">The document may be inaccessible or in an unsupported format.</p>
+              </div>
+            }
           >
-            <Page
-              pageNumber={pageNumber}
-              scale={scale}
-              renderTextLayer={false}
-              renderAnnotationLayer={false}
-            />
+            {!isLoading && !loadError && (
+              <Page
+                pageNumber={pageNumber}
+                scale={scale}
+                rotate={rotation}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+            )}
           </Document>
         </div>
       </ScrollArea>
