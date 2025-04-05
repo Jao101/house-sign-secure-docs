@@ -21,7 +21,7 @@ const UploadPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, addDocument } = useAuth();
+  const { user, addDocument, saveDocumentFile } = useAuth();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
