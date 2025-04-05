@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock, Pen, Trash2 } from "lucide-react";
+import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock, Pen, Trash2, Signature } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
@@ -31,6 +31,7 @@ const ViewDocument = () => {
       if (doc) {
         const enhancedDoc = {
           ...doc,
+          owner: doc.owner || user?.email,
           signers: Array.isArray(doc.signers) ? doc.signers.map(signer => {
             if (typeof signer === 'string') {
               return {
@@ -57,7 +58,7 @@ const ViewDocument = () => {
         }
       }
     }
-  }, [documents, id, getDocumentFile]);
+  }, [documents, id, getDocumentFile, user]);
 
   const handleDeleteDocument = () => {
     if (!document) return;
@@ -89,8 +90,10 @@ const ViewDocument = () => {
   const handleSignDocument = () => {
     if (!document || !user) return;
     
+    let signerExists = false;
     const updatedSigners = document.signers.map((signer: any) => {
       if (signer.email === user.email) {
+        signerExists = true;
         return {
           ...signer,
           status: "signed",
@@ -99,6 +102,15 @@ const ViewDocument = () => {
       }
       return signer;
     });
+    
+    if (!signerExists && user.email === document.owner) {
+      updatedSigners.push({
+        email: user.email,
+        name: user.name || user.email.split('@')[0],
+        status: "signed",
+        timestamp: new Date()
+      });
+    }
 
     const allSigned = updatedSigners.every((signer: any) => signer.status === "signed");
     
@@ -165,7 +177,7 @@ const ViewDocument = () => {
     if ('touches' in e) {
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
-      e.preventDefault(); // Prevent scrolling when drawing
+      e.preventDefault();
     } else {
       clientX = e.clientX;
       clientY = e.clientY;
@@ -193,8 +205,12 @@ const ViewDocument = () => {
     );
   }
 
-  const canSign = document.signers.some((signer: any) => 
-    signer.email === user?.email && signer.status === "pending"
+  const canSign = user && (
+    document.signers.some((signer: any) => 
+      signer.email === user.email && signer.status === "pending"
+    ) || 
+    (document.owner === user.email && 
+     !document.signers.some((signer: any) => signer.email === user.email))
   );
 
   return (
@@ -355,6 +371,13 @@ const ViewDocument = () => {
                             <h3 className="text-sm font-medium text-gray-500">Created</h3>
                             <p className="font-medium">{document.updatedAt?.toLocaleDateString() || 'N/A'}</p>
                           </div>
+
+                          {document.owner && (
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-500">Owner</h3>
+                              <p className="font-medium">{document.owner === user?.email ? 'You' : document.owner}</p>
+                            </div>
+                          )}
                           
                           <div>
                             <h3 className="text-sm font-medium text-gray-500 mb-2">Signers</h3>
@@ -463,20 +486,22 @@ const ViewDocument = () => {
                   </Button>
                 )}
                 
-                {document.status === "awaiting_signatures" && (
+                {(document.status === "awaiting_signatures" || document.status === "draft") && (
                   <>
                     {canSign && (
                       <Button 
                         className="w-full mt-4 bg-housesign-600 hover:bg-housesign-700"
                         onClick={handleSignStart}
                       >
-                        <Pen className="h-4 w-4 mr-2" />
+                        <Signature className="h-4 w-4 mr-2" />
                         Sign Document
                       </Button>
                     )}
-                    <Button className="w-full mt-4" variant="outline">
-                      Remind Signers
-                    </Button>
+                    {document.status === "awaiting_signatures" && (
+                      <Button className="w-full mt-4" variant="outline">
+                        Remind Signers
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
