@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { FileText, FilePlus, X, Plus, UploadIcon } from "lucide-react";
+import { FileText, FilePlus, X, Plus, UploadIcon, Trash2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
@@ -100,17 +100,21 @@ const UploadPage = () => {
     try {
       const docId = `doc-${Date.now()}`;
       
+      let fileId = "";
+      if (selectedFile) {
+        fileId = await saveDocumentFile(selectedFile);
+      }
+      
       const newDocument: Document = {
         id: docId,
         title: documentTitle,
         status: "awaiting_signatures",
         updatedAt: new Date(),
         signers: recipients.map(recipient => recipient.email),
+        fileId: fileId,
       };
       
       addDocument(newDocument);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
       toast({
         title: "Document uploaded successfully",

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock, Pen } from "lucide-react";
+import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock, Pen, Trash2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
@@ -11,15 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import PDFViewer from "@/components/PDFViewer";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { documents, updateDocument, user } = useAuth();
+  const { documents, updateDocument, user, deleteDocument, getDocumentFile } = useAuth();
   const { toast } = useToast();
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isSignatureMode, setIsSignatureMode] = useState(false);
   const [document, setDocument] = useState<any>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   
   const samplePdfUrl = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf";
   
@@ -42,9 +44,33 @@ const ViewDocument = () => {
           }) : []
         };
         setDocument(enhancedDoc);
+        
+        if (doc.fileId) {
+          const fileData = getDocumentFile(doc.fileId);
+          if (fileData) {
+            setPdfUrl(fileData);
+          } else {
+            setPdfUrl(samplePdfUrl);
+          }
+        } else {
+          setPdfUrl(samplePdfUrl);
+        }
       }
     }
-  }, [documents, id]);
+  }, [documents, id, getDocumentFile]);
+
+  const handleDeleteDocument = () => {
+    if (!document) return;
+    
+    deleteDocument(document.id);
+    
+    toast({
+      title: "Document deleted",
+      description: "The document has been permanently removed",
+    });
+    
+    navigate("/dashboard");
+  };
 
   const handleSignStart = () => {
     setIsSignatureMode(true);
@@ -219,6 +245,32 @@ const ViewDocument = () => {
                     <Share className="h-4 w-4 mr-2" />
                     Share
                   </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete "{document.title}" and all associated signatures. 
+                          This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          className="bg-red-600 hover:bg-red-700"
+                          onClick={handleDeleteDocument}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </div>
@@ -263,7 +315,7 @@ const ViewDocument = () => {
                 ) : (
                   <div className="h-[600px]">
                     <PDFViewer 
-                      file={samplePdfUrl}
+                      file={pdfUrl}
                       fallback={
                         <Card className="h-full flex items-center justify-center bg-gray-50">
                           <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
