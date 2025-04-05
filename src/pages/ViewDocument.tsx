@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import PDFViewer from "@/components/PDFViewer";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import SignatureField from "@/components/SignatureField";
+import { Document, SigningField } from "@/components/DocumentCard";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,8 +23,9 @@ const ViewDocument = () => {
   const { toast } = useToast();
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isSignatureMode, setIsSignatureMode] = useState(false);
-  const [document, setDocument] = useState<any>(null);
+  const [document, setDocument] = useState<Document | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [activeSigningField, setActiveSigningField] = useState<string | null>(null);
   
   const samplePdfUrl = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf";
   
@@ -85,6 +89,65 @@ const ViewDocument = () => {
         context.clearRect(0, 0, signatureCanvasRef.current.width, signatureCanvasRef.current.height);
       }
     }
+  };
+
+  const handleSignField = (fieldId: string, signatureData: string) => {
+    if (!document || !user) return;
+    
+    let signerExists = false;
+    const updatedSigners = document.signers.map((signer: any) => {
+      if (signer.email === user.email) {
+        signerExists = true;
+        return {
+          ...signer,
+          status: "signed",
+          timestamp: new Date()
+        };
+      }
+      return signer;
+    });
+    
+    if (!signerExists && user.email === document.owner) {
+      updatedSigners.push({
+        email: user.email,
+        name: user.name || user.email.split('@')[0],
+        status: "signed",
+        timestamp: new Date()
+      });
+    }
+
+    const updatedSigningFields = document.signingFields ? document.signingFields.map(field => {
+      if (field.id === fieldId) {
+        return {
+          ...field,
+          signedBy: user.email,
+        };
+      }
+      return field;
+    }) : [];
+
+    const allSigned = updatedSigners.every((signer: any) => signer.status === "signed");
+    const allFieldsSigned = !document.signingFields || document.signingFields.every(field => field.signedBy !== null);
+    
+    const newStatus = (allSigned && allFieldsSigned) ? "completed" : "awaiting_signatures";
+    
+    updateDocument(document.id, { 
+      signers: updatedSigners,
+      status: newStatus,
+      signingFields: updatedSigningFields.length > 0 ? updatedSigningFields : undefined
+    });
+    
+    setDocument({
+      ...document,
+      signers: updatedSigners,
+      status: newStatus,
+      signingFields: updatedSigningFields.length > 0 ? updatedSigningFields : document.signingFields
+    });
+    
+    toast({
+      title: "Signature added successfully",
+      description: "Your signature has been added to the document",
+    });
   };
 
   const handleSignDocument = () => {
@@ -292,7 +355,7 @@ const ViewDocument = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 relative">
                 {isSignatureMode ? (
                   <Card className="h-[600px] flex flex-col items-center justify-between bg-gray-50 p-6">
                     <div className="w-full text-center mb-4">
@@ -329,7 +392,7 @@ const ViewDocument = () => {
                     </div>
                   </Card>
                 ) : (
-                  <div className="h-[600px]">
+                  <div className="h-[600px] relative">
                     <PDFViewer 
                       file={pdfUrl}
                       fallback={
@@ -342,6 +405,17 @@ const ViewDocument = () => {
                         </Card>
                       }
                     />
+                    
+                    {document.signingFields && document.signingFields.map((field) => (
+                      <SignatureField
+                        key={field.id}
+                        field={field}
+                        onSign={handleSignField}
+                        canSign={canSign}
+                        isSigned={field.signedBy !== null}
+                        signerName={field.signedBy === user?.email ? (user?.name || user?.email?.split('@')[0]) : undefined}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -376,6 +450,14 @@ const ViewDocument = () => {
                             <div>
                               <h3 className="text-sm font-medium text-gray-500">Owner</h3>
                               <p className="font-medium">{document.owner === user?.email ? 'You' : document.owner}</p>
+                            </div>
+                          )}
+
+                          {document.signingFields && document.signingFields.length > 0 && (
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-500">Signature Fields</h3>
+                              <p className="text-sm">{document.signingFields.length} field{document.signingFields.length !== 1 ? 's' : ''} defined</p>
+                              <p className="text-sm">{document.signingFields.filter(f => f.signedBy !== null).length} of {document.signingFields.length} signed</p>
                             </div>
                           )}
                           
@@ -488,7 +570,7 @@ const ViewDocument = () => {
                 
                 {(document.status === "awaiting_signatures" || document.status === "draft") && (
                   <>
-                    {canSign && (
+                    {canSign && (!document.signingFields || document.signingFields.length === 0) && (
                       <Button 
                         className="w-full mt-4 bg-housesign-600 hover:bg-housesign-700"
                         onClick={handleSignStart}

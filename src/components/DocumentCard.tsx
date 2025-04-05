@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Clock, FileCheck, FilePen, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
+export interface SigningField {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  page: number;
+  signedBy: string | null;
+}
+
 export interface Document {
   id: string;
   title: string;
@@ -14,6 +24,7 @@ export interface Document {
   signers: string[] | { email: string; name: string; status: string; timestamp: Date | null }[];
   fileId?: string;
   owner?: string; // Added owner to track who created the document
+  signingFields?: SigningField[]; // Added signing fields
 }
 
 interface DocumentCardProps {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,10 @@ import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import { Document } from "@/components/DocumentCard";
+import { Document, SigningField } from "@/components/DocumentCard";
+import SigningFieldsEditor from "@/components/SigningFieldsEditor";
+import { v4 as uuidv4 } from "uuid";
+import PDFViewer from "@/components/PDFViewer";
 
 const UploadPage = () => {
   const [documentTitle, setDocumentTitle] = useState("");
@@ -18,6 +21,8 @@ const UploadPage = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [recipients, setRecipients] = useState([{ email: "", name: "" }]);
   const [isUploading, setIsUploading] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [signingFields, setSigningFields] = useState<SigningField[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -69,7 +74,22 @@ const UploadPage = () => {
       const fileName = file.name.split('.').slice(0, -1).join('.');
       setDocumentTitle(fileName);
     }
+    
+    if (file.type === 'application/pdf') {
+      const url = URL.createObjectURL(file);
+      setPdfUrl(url);
+    } else {
+      setPdfUrl(null);
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -112,6 +132,8 @@ const UploadPage = () => {
         updatedAt: new Date(),
         signers: recipients.map(recipient => recipient.email),
         fileId: fileId,
+        owner: user?.email,
+        signingFields: signingFields.length > 0 ? signingFields : undefined,
       };
       
       addDocument(newDocument);
@@ -182,6 +204,7 @@ const UploadPage = () => {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedFile(null);
+                                  setPdfUrl(null);
                                 }}
                               >
                                 <X className="h-4 w-4" />
@@ -208,6 +231,36 @@ const UploadPage = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                {pdfUrl && (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <Label className="mb-2 block">Document Preview & Signature Fields</Label>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Preview your document and add up to 5 signature fields. Position them where you want signatures to appear.
+                      </p>
+                      <div className="h-[400px] mb-6">
+                        <PDFViewer 
+                          file={pdfUrl}
+                          fallback={
+                            <Card className="h-full flex items-center justify-center bg-gray-50">
+                              <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
+                                <FilePlus className="h-16 w-16 text-gray-300 mb-4" />
+                                <p className="text-gray-500">No document preview available</p>
+                              </CardContent>
+                            </Card>
+                          }
+                        />
+                      </div>
+                      
+                      <SigningFieldsEditor 
+                        fields={signingFields}
+                        onChange={setSigningFields}
+                        pdfUrl={pdfUrl}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
 
                 <Card>
                   <CardContent className="pt-6">
