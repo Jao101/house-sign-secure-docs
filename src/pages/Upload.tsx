@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { FileText, FilePlus, X, Plus, UploadIcon, Trash2 } from "lucide-react";
+import { FileText, FilePlus, X, Plus, UploadIcon } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
@@ -13,7 +13,6 @@ import { useAuth } from "@/context/AuthContext";
 import { Document, SigningField } from "@/components/DocumentCard";
 import SigningFieldsEditor from "@/components/SigningFieldsEditor";
 import { v4 as uuidv4 } from "uuid";
-import PDFViewer from "@/components/PDFViewer";
 
 const UploadPage = () => {
   const [documentTitle, setDocumentTitle] = useState("");
@@ -237,21 +236,9 @@ const UploadPage = () => {
                     <CardContent className="pt-6">
                       <Label className="mb-2 block">Document Preview & Signature Fields</Label>
                       <p className="text-sm text-gray-500 mb-4">
-                        Preview your document and add up to 5 signature fields. Position them where you want signatures to appear.
+                        Preview your document and add signature fields by clicking on the PDF where you want signatures to appear. 
+                        You can drag and resize the fields as needed.
                       </p>
-                      <div className="h-[400px] mb-6">
-                        <PDFViewer 
-                          file={pdfUrl}
-                          fallback={
-                            <Card className="h-full flex items-center justify-center bg-gray-50">
-                              <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
-                                <FilePlus className="h-16 w-16 text-gray-300 mb-4" />
-                                <p className="text-gray-500">No document preview available</p>
-                              </CardContent>
-                            </Card>
-                          }
-                        />
-                      </div>
                       
                       <SigningFieldsEditor 
                         fields={signingFields}

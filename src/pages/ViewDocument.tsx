@@ -1,10 +1,9 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock, Pen, Trash2, Signature } from "lucide-react";
+import { FilePen, Download, Share, ChevronLeft, FileCheck, Clock, Trash2, Signature } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthGuard from "@/components/AuthGuard";
@@ -15,6 +14,7 @@ import PDFViewer from "@/components/PDFViewer";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import SignatureField from "@/components/SignatureField";
 import { Document, SigningField } from "@/components/DocumentCard";
+import { downloadDocument } from "@/utils/documentUtils";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
@@ -254,6 +254,17 @@ const ViewDocument = () => {
     setIsDrawing(false);
   };
 
+  const handleDownload = () => {
+    if (!document) return;
+    
+    downloadDocument(document.title, pdfUrl);
+    
+    toast({
+      title: "Document downloaded",
+      description: "The document has been downloaded to your device",
+    });
+  };
+
   if (!document) {
     return (
       <AuthGuard>
@@ -316,7 +327,7 @@ const ViewDocument = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={handleDownload}>
                     <Download className="h-4 w-4 mr-2" />
                     Download
                   </Button>
