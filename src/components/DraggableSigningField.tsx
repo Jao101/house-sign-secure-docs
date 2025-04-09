@@ -23,10 +23,11 @@ const DraggableSigningField: React.FC<DraggableSigningFieldProps> = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const fieldRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-
+  
   // Handle mouse and touch events for dragging
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     
     let clientX, clientY;
     if ('touches' in e) {
@@ -50,6 +51,7 @@ const DraggableSigningField: React.FC<DraggableSigningFieldProps> = ({
   
   const handleResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setIsResizing(true);
   };
   
@@ -128,6 +130,7 @@ const DraggableSigningField: React.FC<DraggableSigningFieldProps> = ({
         top: `${field.y * pageScale}px`,
         width: `${field.width * pageScale}px`,
         height: `${field.height * pageScale}px`,
+        zIndex: 10
       }}
       onMouseDown={handleDragStart}
       onTouchStart={handleDragStart}

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SigningField } from "@/components/DocumentCard";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Signature } from "lucide-react";
+import { Plus, Signature, SignatureIcon } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/components/ui/use-toast";
 import { Document, Page, pdfjs } from "react-pdf";
@@ -30,12 +30,15 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
   const [scale, setScale] = useState(1.0);
   const { toast } = useToast();
   const pdfContainerRef = useRef<HTMLDivElement>(null);
+  const [isDraggingNew, setIsDraggingNew] = useState(false);
   
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
   };
   
-  const handleAddField = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleAddField = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    
     if (fields.length >= 5) {
       toast({
         title: "Maximum fields reached",
@@ -45,8 +48,7 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
       return;
     }
     
-    // Only add field if clicking directly on the container, not on existing fields
-    if (e.currentTarget === e.target && pdfContainerRef.current) {
+    if (pdfContainerRef.current) {
       const rect = pdfContainerRef.current.getBoundingClientRect();
       const x = (e.clientX - rect.left) / scale;
       const y = (e.clientY - rect.top) / scale;
@@ -63,6 +65,8 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
       
       onChange([...fields, newField]);
     }
+    
+    setIsDraggingNew(false);
   };
   
   const handleUpdateField = (updatedField: SigningField) => {
@@ -75,12 +79,35 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
     onChange(fields.filter(field => field.id !== id));
   };
 
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleSignatureFieldDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.setData("application/x-signature-field", "new");
+    e.dataTransfer.effectAllowed = "copy";
+    setIsDraggingNew(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Label>Signing Fields (max 5)</Label>
         <div className="text-sm text-gray-500">
-          {fields.length}/5 fields • Click on PDF to add a signature field
+          {fields.length}/5 fields
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-start mb-4 p-2 border rounded-md bg-gray-50">
+        <div className="text-sm mr-4">Drag to add:</div>
+        <div
+          className="w-48 h-12 bg-amber-50 border-2 border-dashed border-amber-500 rounded flex items-center justify-center cursor-grab"
+          draggable
+          onDragStart={handleSignatureFieldDragStart}
+        >
+          <SignatureIcon className="h-4 w-4 text-amber-600 mr-2" />
+          <span className="text-amber-600 text-sm font-medium">Signature Field</span>
         </div>
       </div>
       
@@ -91,7 +118,8 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
               <div
                 className="relative"
                 ref={pdfContainerRef}
-                onClick={handleAddField}
+                onDragOver={handleDragOver}
+                onDrop={handleAddField}
               >
                 <Document
                   file={pdfUrl}
@@ -165,7 +193,7 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
             <Signature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
             <p className="text-gray-500">Upload a PDF document to add signing fields</p>
             <p className="text-sm text-gray-400">
-              Add up to 5 signing fields to your document
+              Drag and drop signature fields onto the document
             </p>
           </CardContent>
         </Card>
