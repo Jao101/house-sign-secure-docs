@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,10 +15,12 @@ import PDFViewer from "@/components/PDFViewer";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import SignatureField from "@/components/SignatureField";
 import { Document, SigningField } from "@/components/DocumentCard";
-import { downloadDocument } from "@/utils/documentUtils";
+import { downloadDocument, shareDocument } from "@/utils/documentUtils";
+import { canRevokeSignature } from "@/utils/signatureUtils";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { documents, updateDocument, user, deleteDocument, getDocumentFile } = useAuth();
   const { toast } = useToast();
@@ -26,7 +29,9 @@ const ViewDocument = () => {
   const [document, setDocument] = useState<Document | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [activeSigningField, setActiveSigningField] = useState<string | null>(null);
+  const [signatureDates, setSignatureDates] = useState<Record<string, Date>>({});
   
+  const isSharedView = searchParams.get('share') === 'true';
   const samplePdfUrl = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf";
   
   useEffect(() => {
@@ -50,6 +55,17 @@ const ViewDocument = () => {
         };
         setDocument(enhancedDoc);
         
+        // Create a mapping of field IDs to signature dates for revocation check
+        const dateMap: Record<string, Date> = {};
+        if (doc.signingFields) {
+          doc.signingFields.forEach(field => {
+            if (field.signedBy && field.signedTimestamp) {
+              dateMap[field.id] = new Date(field.signedTimestamp);
+            }
+          });
+        }
+        setSignatureDates(dateMap);
+        
         if (doc.fileId) {
           const fileData = getDocumentFile(doc.fileId);
           if (fileData) {
@@ -70,8 +86,8 @@ const ViewDocument = () => {
     deleteDocument(document.id);
     
     toast({
-      title: "Document deleted",
-      description: "The document has been permanently removed",
+      title: "Dokument gelöscht",
+      description: "Das Dokument wurde dauerhaft entfernt",
     });
     
     navigate("/dashboard");
@@ -116,11 +132,21 @@ const ViewDocument = () => {
       });
     }
 
+    const currentDate = new Date();
+    
+    // Store the signature date for revocation check
+    setSignatureDates({
+      ...signatureDates,
+      [fieldId]: currentDate
+    });
+
     const updatedSigningFields = document.signingFields ? document.signingFields.map(field => {
       if (field.id === fieldId) {
         return {
           ...field,
           signedBy: user.email,
+          signatureImageData: signatureData, // Store the actual signature image data
+          signedTimestamp: currentDate
         };
       }
       return field;
@@ -145,8 +171,82 @@ const ViewDocument = () => {
     });
     
     toast({
-      title: "Signature added successfully",
-      description: "Your signature has been added to the document",
+      title: "Unterschrift erfolgreich hinzugefügt",
+      description: "Ihre Unterschrift wurde zum Dokument hinzugefügt",
+    });
+  };
+
+  const handleRevokeSignature = (fieldId: string) => {
+    if (!document || !user) return;
+    
+    // Check if the signature can be revoked (within 5 minutes)
+    const signatureDate = signatureDates[fieldId];
+    if (!signatureDate || !canRevokeSignature(signatureDate)) {
+      toast({
+        title: "Rücknahme nicht möglich",
+        description: "Die Unterschrift kann nur innerhalb von 5 Minuten nach dem Signieren zurückgezogen werden.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Remove the signature from the field
+    const updatedSigningFields = document.signingFields ? document.signingFields.map(field => {
+      if (field.id === fieldId) {
+        return {
+          ...field,
+          signedBy: null,
+          signatureImageData: null,
+          signedTimestamp: null
+        };
+      }
+      return field;
+    }) : [];
+    
+    // Update signature dates
+    const newSignatureDates = { ...signatureDates };
+    delete newSignatureDates[fieldId];
+    setSignatureDates(newSignatureDates);
+    
+    // Check if the user has any remaining signatures
+    const userStillHasSignatures = updatedSigningFields.some(field => field.signedBy === user.email);
+    
+    // Update signer status if user has removed all their signatures
+    let updatedSigners = [...document.signers];
+    if (!userStillHasSignatures) {
+      updatedSigners = document.signers.map((signer: any) => {
+        if (signer.email === user.email) {
+          return {
+            ...signer,
+            status: "pending",
+            timestamp: null
+          };
+        }
+        return signer;
+      });
+    }
+    
+    // Update document status
+    const allSigned = updatedSigners.every((signer: any) => signer.status === "signed");
+    const allFieldsSigned = updatedSigningFields.every(field => field.signedBy !== null);
+    const newStatus = (allSigned && allFieldsSigned) ? "completed" : "awaiting_signatures";
+    
+    updateDocument(document.id, { 
+      signers: updatedSigners,
+      status: newStatus,
+      signingFields: updatedSigningFields
+    });
+    
+    setDocument({
+      ...document,
+      signers: updatedSigners,
+      status: newStatus,
+      signingFields: updatedSigningFields
+    });
+    
+    toast({
+      title: "Unterschrift zurückgezogen",
+      description: "Ihre Unterschrift wurde entfernt"
     });
   };
 
@@ -193,8 +293,8 @@ const ViewDocument = () => {
     setIsSignatureMode(false);
     
     toast({
-      title: "Document signed successfully",
-      description: "Your signature has been added to the document",
+      title: "Dokument erfolgreich unterschrieben",
+      description: "Ihre Unterschrift wurde zum Dokument hinzugefügt",
     });
   };
   
@@ -254,15 +354,34 @@ const ViewDocument = () => {
     setIsDrawing(false);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!document) return;
     
-    downloadDocument(document.title, pdfUrl);
+    await downloadDocument(document.title, pdfUrl, document.signingFields);
     
     toast({
-      title: "Document downloaded",
-      description: "The document has been downloaded to your device",
+      title: "Dokument heruntergeladen",
+      description: "Das Dokument wurde auf Ihr Gerät heruntergeladen",
     });
+  };
+  
+  const handleShare = async () => {
+    if (!document) return;
+    
+    const success = await shareDocument(document.id);
+    
+    if (success) {
+      toast({
+        title: "Link kopiert",
+        description: "Ein Link zum Dokument wurde in Ihre Zwischenablage kopiert",
+      });
+    } else {
+      toast({
+        title: "Fehler beim Teilen",
+        description: "Der Link konnte nicht kopiert werden. Bitte versuchen Sie es erneut.",
+        variant: "destructive"
+      });
+    }
   };
 
   if (!document) {
@@ -271,7 +390,7 @@ const ViewDocument = () => {
         <div className="flex flex-col min-h-screen">
           <Navbar />
           <main className="flex-1 flex items-center justify-center">
-            <p>Loading document...</p>
+            <p>Dokument wird geladen...</p>
           </main>
           <Footer />
         </div>
@@ -301,8 +420,14 @@ const ViewDocument = () => {
                 className="mb-4"
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Back
+                Zurück
               </Button>
+              
+              {isSharedView && (
+                <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-md">
+                  Sie betrachten ein geteiltes Dokument
+                </div>
+              )}
               
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -311,17 +436,17 @@ const ViewDocument = () => {
                     {document.status === "completed" ? (
                       <>
                         <FileCheck className="h-4 w-4 text-green-500" />
-                        <Badge variant="outline" className="text-green-500 border-green-300">Completed</Badge>
+                        <Badge variant="outline" className="text-green-500 border-green-300">Abgeschlossen</Badge>
                       </>
                     ) : document.status === "awaiting_signatures" ? (
                       <>
                         <Clock className="h-4 w-4 text-amber-500" />
-                        <Badge variant="outline" className="text-amber-500 border-amber-300">Awaiting Signatures</Badge>
+                        <Badge variant="outline" className="text-amber-500 border-amber-300">Warte auf Unterschriften</Badge>
                       </>
                     ) : (
                       <>
                         <FilePen className="h-4 w-4 text-gray-500" />
-                        <Badge variant="outline" className="text-gray-500 border-gray-300">Draft</Badge>
+                        <Badge variant="outline" className="text-gray-500 border-gray-300">Entwurf</Badge>
                       </>
                     )}
                   </div>
@@ -331,36 +456,38 @@ const ViewDocument = () => {
                     <Download className="h-4 w-4 mr-2" />
                     Download
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={handleShare}>
                     <Share className="h-4 w-4 mr-2" />
-                    Share
+                    Teilen
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Document</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete "{document.title}" and all associated signatures. 
-                          This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          className="bg-red-600 hover:bg-red-700"
-                          onClick={handleDeleteDocument}
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  {user && document.owner === user.email && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50">
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Löschen
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Dokument löschen</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Dies wird "{document.title}" und alle zugehörigen Unterschriften dauerhaft löschen.
+                            Diese Aktion kann nicht rückgängig gemacht werden.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction 
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={handleDeleteDocument}
+                          >
+                            Löschen
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
               </div>
             </div>
@@ -370,8 +497,8 @@ const ViewDocument = () => {
                 {isSignatureMode ? (
                   <Card className="h-[600px] flex flex-col items-center justify-between bg-gray-50 p-6">
                     <div className="w-full text-center mb-4">
-                      <h3 className="text-lg font-medium">Sign Document</h3>
-                      <p className="text-gray-500">Please draw your signature below</p>
+                      <h3 className="text-lg font-medium">Dokument unterschreiben</h3>
+                      <p className="text-gray-500">Bitte zeichnen Sie Ihre Unterschrift unten</p>
                     </div>
                     
                     <div className="flex-1 w-full flex items-center justify-center border-b border-dashed border-gray-300 mb-4">
@@ -392,13 +519,13 @@ const ViewDocument = () => {
                     
                     <div className="flex gap-4">
                       <Button variant="outline" onClick={handleSignCancel}>
-                        Clear
+                        Löschen
                       </Button>
                       <Button 
                         className="bg-housesign-600 hover:bg-housesign-700"
                         onClick={handleSignDocument}
                       >
-                        Complete Signing
+                        Unterschrift abschließen
                       </Button>
                     </div>
                   </Card>
@@ -410,8 +537,8 @@ const ViewDocument = () => {
                         <Card className="h-full flex items-center justify-center bg-gray-50">
                           <CardContent className="p-0 w-full h-full flex flex-col items-center justify-center">
                             <FilePen className="h-16 w-16 text-gray-300 mb-4" />
-                            <p className="text-gray-500">No document preview available</p>
-                            <p className="text-sm text-gray-400 mt-2">Please upload a PDF document</p>
+                            <p className="text-gray-500">Keine Dokumentvorschau verfügbar</p>
+                            <p className="text-sm text-gray-400 mt-2">Bitte laden Sie ein PDF-Dokument hoch</p>
                           </CardContent>
                         </Card>
                       }
@@ -422,9 +549,11 @@ const ViewDocument = () => {
                         key={field.id}
                         field={field}
                         onSign={handleSignField}
+                        onRevoke={handleRevokeSignature}
                         canSign={canSign}
                         isSigned={field.signedBy !== null}
                         signerName={field.signedBy === user?.email ? (user?.name || user?.email?.split('@')[0]) : undefined}
+                        signatureTimestamp={field.signedTimestamp ? new Date(field.signedTimestamp) : null}
                       />
                     ))}
                   </div>
@@ -435,7 +564,7 @@ const ViewDocument = () => {
                 <Tabs defaultValue="details">
                   <TabsList className="w-full">
                     <TabsTrigger value="details" className="flex-1">Details</TabsTrigger>
-                    <TabsTrigger value="activity" className="flex-1">Activity</TabsTrigger>
+                    <TabsTrigger value="activity" className="flex-1">Aktivität</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="details">
@@ -443,37 +572,41 @@ const ViewDocument = () => {
                       <CardContent className="pt-6">
                         <div className="space-y-4">
                           <div>
-                            <h3 className="text-sm font-medium text-gray-500">Document Title</h3>
+                            <h3 className="text-sm font-medium text-gray-500">Dokumenttitel</h3>
                             <p className="font-medium">{document.title}</p>
                           </div>
                           
                           <div>
                             <h3 className="text-sm font-medium text-gray-500">Status</h3>
-                            <p className="font-medium capitalize">{document.status.replace("_", " ")}</p>
+                            <p className="font-medium">
+                              {document.status === "completed" ? "Abgeschlossen" : 
+                               document.status === "awaiting_signatures" ? "Warte auf Unterschriften" : 
+                               "Entwurf"}
+                            </p>
                           </div>
                           
                           <div>
-                            <h3 className="text-sm font-medium text-gray-500">Created</h3>
+                            <h3 className="text-sm font-medium text-gray-500">Erstellt</h3>
                             <p className="font-medium">{document.updatedAt?.toLocaleDateString() || 'N/A'}</p>
                           </div>
 
                           {document.owner && (
                             <div>
-                              <h3 className="text-sm font-medium text-gray-500">Owner</h3>
-                              <p className="font-medium">{document.owner === user?.email ? 'You' : document.owner}</p>
+                              <h3 className="text-sm font-medium text-gray-500">Besitzer</h3>
+                              <p className="font-medium">{document.owner === user?.email ? 'Sie' : document.owner}</p>
                             </div>
                           )}
 
                           {document.signingFields && document.signingFields.length > 0 && (
                             <div>
-                              <h3 className="text-sm font-medium text-gray-500">Signature Fields</h3>
-                              <p className="text-sm">{document.signingFields.length} field{document.signingFields.length !== 1 ? 's' : ''} defined</p>
-                              <p className="text-sm">{document.signingFields.filter(f => f.signedBy !== null).length} of {document.signingFields.length} signed</p>
+                              <h3 className="text-sm font-medium text-gray-500">Unterschriftenfelder</h3>
+                              <p className="text-sm">{document.signingFields.length} Feld{document.signingFields.length !== 1 ? 'er' : ''} definiert</p>
+                              <p className="text-sm">{document.signingFields.filter(f => f.signedBy !== null).length} von {document.signingFields.length} unterschrieben</p>
                             </div>
                           )}
                           
                           <div>
-                            <h3 className="text-sm font-medium text-gray-500 mb-2">Signers</h3>
+                            <h3 className="text-sm font-medium text-gray-500 mb-2">Unterzeichner</h3>
                             {document.signers.map((signer, i) => (
                               <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
                                 <div>
@@ -482,9 +615,9 @@ const ViewDocument = () => {
                                 </div>
                                 <div>
                                   {signer.status === "signed" ? (
-                                    <Badge variant="outline" className="text-green-500 border-green-300">Signed</Badge>
+                                    <Badge variant="outline" className="text-green-500 border-green-300">Unterschrieben</Badge>
                                   ) : (
-                                    <Badge variant="outline" className="text-amber-500 border-amber-300">Pending</Badge>
+                                    <Badge variant="outline" className="text-amber-500 border-amber-300">Ausstehend</Badge>
                                   )}
                                 </div>
                               </div>
@@ -507,8 +640,8 @@ const ViewDocument = () => {
                                     <div className="h-2 w-2 bg-green-500 rounded-full"></div>
                                   </div>
                                   <div>
-                                    <p className="font-medium">Document Completed</p>
-                                    <p className="text-sm text-gray-500">All parties have signed</p>
+                                    <p className="font-medium">Dokument abgeschlossen</p>
+                                    <p className="text-sm text-gray-500">Alle Parteien haben unterschrieben</p>
                                     <p className="text-xs text-gray-400 mt-1">April 3, 2025, 10:30 AM</p>
                                   </div>
                                 </div>
@@ -518,7 +651,7 @@ const ViewDocument = () => {
                                       <div className="h-2 w-2 bg-green-500 rounded-full"></div>
                                     </div>
                                     <div>
-                                      <p className="font-medium">{signer.name} signed the document</p>
+                                      <p className="font-medium">{signer.name} hat das Dokument unterschrieben</p>
                                       <p className="text-xs text-gray-400 mt-1">{signer.timestamp?.toLocaleString()}</p>
                                     </div>
                                   </div>
@@ -531,8 +664,8 @@ const ViewDocument = () => {
                                     <div className="h-2 w-2 bg-amber-500 rounded-full"></div>
                                   </div>
                                   <div>
-                                    <p className="font-medium">Document Sent for Signing</p>
-                                    <p className="text-sm text-gray-500">Waiting for signatures</p>
+                                    <p className="font-medium">Dokument zur Unterschrift gesendet</p>
+                                    <p className="text-sm text-gray-500">Warte auf Unterschriften</p>
                                     <p className="text-xs text-gray-400 mt-1">April 2, 2025, 3:15 PM</p>
                                   </div>
                                 </div>
@@ -544,8 +677,8 @@ const ViewDocument = () => {
                                     <div>
                                       <p className="font-medium">
                                         {signer.status === "signed" 
-                                          ? `${signer.name} signed the document` 
-                                          : `Waiting for ${signer.name}`}
+                                          ? `${signer.name} hat das Dokument unterschrieben` 
+                                          : `Warte auf ${signer.name}`}
                                       </p>
                                       {signer.timestamp && (
                                         <p className="text-xs text-gray-400 mt-1">{signer.timestamp.toLocaleString()}</p>
@@ -560,8 +693,8 @@ const ViewDocument = () => {
                                   <div className="h-2 w-2 bg-gray-500 rounded-full"></div>
                                 </div>
                                 <div>
-                                  <p className="font-medium">Document Created</p>
-                                  <p className="text-sm text-gray-500">Saved as draft</p>
+                                  <p className="font-medium">Dokument erstellt</p>
+                                  <p className="text-sm text-gray-500">Als Entwurf gespeichert</p>
                                   <p className="text-xs text-gray-400 mt-1">April 1, 2025, 9:45 AM</p>
                                 </div>
                               </div>
@@ -575,7 +708,7 @@ const ViewDocument = () => {
                 
                 {document.status === "draft" && (
                   <Button className="w-full mt-4 bg-housesign-600 hover:bg-housesign-700">
-                    Edit Document
+                    Dokument bearbeiten
                   </Button>
                 )}
                 
@@ -587,12 +720,12 @@ const ViewDocument = () => {
                         onClick={handleSignStart}
                       >
                         <Signature className="h-4 w-4 mr-2" />
-                        Sign Document
+                        Dokument unterschreiben
                       </Button>
                     )}
                     {document.status === "awaiting_signatures" && (
                       <Button className="w-full mt-4" variant="outline">
-                        Remind Signers
+                        Unterzeichner erinnern
                       </Button>
                     )}
                   </>
@@ -609,3 +742,4 @@ const ViewDocument = () => {
 };
 
 export default ViewDocument;
+
