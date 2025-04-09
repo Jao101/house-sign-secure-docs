@@ -32,11 +32,31 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [isDraggingNew, setIsDraggingNew] = useState(false);
   const [pdfLoaded, setPdfLoaded] = useState(false);
+  const [pdfDimensions, setPdfDimensions] = useState({ width: 0, height: 0 });
   
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setPdfLoaded(true);
   };
+  
+  useEffect(() => {
+    // Get PDF dimensions when a page loads
+    const updatePdfDimensions = () => {
+      if (pdfContainerRef.current) {
+        const pdfPage = pdfContainerRef.current.querySelector('.react-pdf__Page');
+        if (pdfPage) {
+          const { width, height } = pdfPage.getBoundingClientRect();
+          setPdfDimensions({ width, height });
+        }
+      }
+    };
+    
+    // Wait a bit for PDF to render
+    if (pdfLoaded) {
+      const timer = setTimeout(updatePdfDimensions, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [pdfLoaded, currentPage, scale]);
   
   const handleAddField = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -53,23 +73,23 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
     if (pdfContainerRef.current && pdfLoaded) {
       const rect = pdfContainerRef.current.getBoundingClientRect();
       
-      // Get the exact drop position
-      const dropX = e.clientX - rect.left; 
+      // Calculate drop position relative to the PDF container
+      const dropX = e.clientX - rect.left;
       const dropY = e.clientY - rect.top;
       
       // Convert to PDF coordinates by dividing by scale
       const pdfX = dropX / scale;
       const pdfY = dropY / scale;
       
-      // Calculate field size (maybe based on a percentage of PDF width)
+      // Default field dimensions
       const fieldWidth = 200;
       const fieldHeight = 50;
       
-      // Create new field at the exact drop position
+      // Create new field centered at the drop position
       const newField: SigningField = {
         id: uuidv4(),
-        x: Math.max(0, pdfX - fieldWidth/2), // Center the field on drop point
-        y: Math.max(0, pdfY - fieldHeight/2), // Center the field on drop point
+        x: Math.max(0, pdfX - fieldWidth/2),
+        y: Math.max(0, pdfY - fieldHeight/2),
         width: fieldWidth,
         height: fieldHeight,
         page: currentPage,
@@ -77,6 +97,11 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
       };
       
       onChange([...fields, newField]);
+      
+      toast({
+        title: "Signature field added",
+        description: "Drag to reposition or resize the field as needed",
+      });
     }
     
     setIsDraggingNew(false);
@@ -90,6 +115,11 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
   
   const handleRemoveField = (id: string) => {
     onChange(fields.filter(field => field.id !== id));
+    
+    toast({
+      title: "Signature field removed",
+      description: "The field has been deleted",
+    });
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -156,6 +186,7 @@ const SigningFieldsEditor: React.FC<SigningFieldsEditorProps> = ({
                       onDelete={handleRemoveField}
                       containerRef={pdfContainerRef}
                       pageScale={scale}
+                      pdfDimensions={pdfDimensions}
                     />
                   ))
                 }
