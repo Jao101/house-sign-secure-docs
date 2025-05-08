@@ -1,3 +1,4 @@
+
 import { SigningField } from "@/components/DocumentCard";
 
 /**
@@ -7,7 +8,7 @@ export const canUserSignField = (
   field: SigningField, 
   userEmail: string | null | undefined,
   documentOwner: string | null | undefined,
-  signers: Array<{ email: string; status: string }> = []
+  signers: Array<string | { email: string; status: string }> = []
 ): boolean => {
   if (!userEmail) return false;
   
@@ -15,9 +16,46 @@ export const canUserSignField = (
   if (field.signedBy !== null) return false;
   
   const isOwner = userEmail === documentOwner;
-  const isSigner = signers.some(signer => signer.email === userEmail);
+  const isSigner = signers.some(signer => {
+    if (typeof signer === 'string') {
+      return signer === userEmail;
+    }
+    return signer.email === userEmail;
+  });
   
   return isOwner || isSigner;
+};
+
+// Helper function to get signer email
+export const getSignerEmail = (signer: string | { email: string; name?: string; status?: string; timestamp?: Date | null }): string => {
+  if (typeof signer === 'string') {
+    return signer;
+  }
+  return signer.email;
+};
+
+// Helper function to get signer name
+export const getSignerName = (signer: string | { email: string; name?: string; status?: string; timestamp?: Date | null }): string => {
+  if (typeof signer === 'string') {
+    return signer.split('@')[0] || signer;
+  }
+  return signer.name || signer.email.split('@')[0] || signer.email;
+};
+
+// Helper function to get signer status
+export const getSignerStatus = (signer: string | { email: string; name?: string; status?: string; timestamp?: Date | null }): string => {
+  if (typeof signer === 'string') {
+    return 'pending';
+  }
+  return signer.status || 'pending';
+};
+
+// Helper function to get signer timestamp
+export const getSignerTimestamp = (signer: string | { email: string; name?: string; status?: string; timestamp?: Date | null }): Date | null => {
+  if (typeof signer === 'string') {
+    return null;
+  }
+  return signer.timestamp || null;
 };
 
 /**

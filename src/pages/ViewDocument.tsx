@@ -15,7 +15,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import SignatureField from "@/components/SignatureField";
 import { Document, SigningField } from "@/components/DocumentCard";
 import { downloadDocument, shareDocument } from "@/utils/documentUtils";
-import { canRevokeSignature } from "@/utils/signatureUtils";
+import { 
+  canRevokeSignature, 
+  getSignerName, 
+  getSignerEmail, 
+  getSignerStatus,
+  getSignerTimestamp 
+} from "@/utils/signatureUtils";
 
 const ViewDocument = () => {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +39,18 @@ const ViewDocument = () => {
   const isSharedView = searchParams.get('share') === 'true';
   const samplePdfUrl = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf";
   
+  // Helper function to check if a user is a signer
+  const isUserSigner = (user: any, signers: Array<string | { email: string; name: string; status: string; timestamp: Date | null }>) => {
+    if (!user) return false;
+    
+    return signers.some(signer => {
+      if (typeof signer === 'string') {
+        return signer === user.email;
+      }
+      return signer.email === user.email;
+    });
+  };
+
   useEffect(() => {
     if (documents && id) {
       const doc = documents.find(d => d.id === id);
@@ -110,16 +128,29 @@ const ViewDocument = () => {
     if (!document || !user) return;
     
     let signerExists = false;
-    const updatedSigners = document.signers.map((signer: any) => {
-      if (signer.email === user.email) {
-        signerExists = true;
-        return {
-          ...signer,
-          status: "signed",
-          timestamp: new Date()
-        };
+    const updatedSigners = document.signers.map((signer) => {
+      if (typeof signer === 'string') {
+        if (signer === user.email) {
+          signerExists = true;
+          return {
+            email: signer,
+            name: signer.split('@')[0],
+            status: "signed",
+            timestamp: new Date()
+          };
+        }
+        return signer;
+      } else {
+        if (signer.email === user.email) {
+          signerExists = true;
+          return {
+            ...signer,
+            status: "signed",
+            timestamp: new Date()
+          };
+        }
+        return signer;
       }
-      return signer;
     });
     
     if (!signerExists && user.email === document.owner) {
@@ -151,7 +182,13 @@ const ViewDocument = () => {
       return field;
     }) : [];
 
-    const allSigned = updatedSigners.every((signer: any) => signer.status === "signed");
+    const allSigned = updatedSigners.every(signer => {
+      if (typeof signer === 'string') {
+        return false; // String signers are considered unsigned
+      }
+      return signer.status === "signed";
+    });
+    
     const allFieldsSigned = !document.signingFields || document.signingFields.every(field => field.signedBy !== null);
     
     const newStatus = (allSigned && allFieldsSigned) ? "completed" : "awaiting_signatures";
@@ -253,16 +290,29 @@ const ViewDocument = () => {
     if (!document || !user) return;
     
     let signerExists = false;
-    const updatedSigners = document.signers.map((signer: any) => {
-      if (signer.email === user.email) {
-        signerExists = true;
-        return {
-          ...signer,
-          status: "signed",
-          timestamp: new Date()
-        };
+    const updatedSigners = document.signers.map((signer) => {
+      if (typeof signer === 'string') {
+        if (signer === user.email) {
+          signerExists = true;
+          return {
+            email: signer,
+            name: signer.split('@')[0],
+            status: "signed",
+            timestamp: new Date()
+          };
+        }
+        return signer;
+      } else {
+        if (signer.email === user.email) {
+          signerExists = true;
+          return {
+            ...signer,
+            status: "signed",
+            timestamp: new Date()
+          };
+        }
+        return signer;
       }
-      return signer;
     });
     
     if (!signerExists && user.email === document.owner) {
@@ -274,7 +324,12 @@ const ViewDocument = () => {
       });
     }
 
-    const allSigned = updatedSigners.every((signer: any) => signer.status === "signed");
+    const allSigned = updatedSigners.every(signer => {
+      if (typeof signer === 'string') {
+        return false; // String signers are considered unsigned
+      }
+      return signer.status === "signed";
+    });
     
     const newStatus = allSigned ? "completed" : "awaiting_signatures";
     
@@ -398,11 +453,9 @@ const ViewDocument = () => {
   }
 
   const canSign = user && (
-    document.signers.some((signer: any) => 
-      signer.email === user.email && signer.status === "pending"
-    ) || 
+    isUserSigner(user, document.signers) ||
     (document.owner === user.email && 
-     !document.signers.some((signer: any) => signer.email === user.email))
+     !isUserSigner(user, document.signers))
   );
 
   return (
@@ -551,8 +604,8 @@ const ViewDocument = () => {
                         onRevoke={handleRevokeSignature}
                         canSign={canSign}
                         isSigned={field.signedBy !== null}
-                        signerName={field.signedBy === user?.email ? (user?.name || user?.email?.split('@')[0]) : undefined}
-                        signatureTimestamp={field.signedTimestamp ? new Date(field.signedTimestamp) : null}
+                        signerName={getSignerName(field)}
+                        signatureTimestamp={getSignerTimestamp(field)}
                       />
                     ))}
                   </div>
@@ -609,11 +662,11 @@ const ViewDocument = () => {
                             {document.signers.map((signer, i) => (
                               <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
                                 <div>
-                                  <p className="font-medium">{signer.name}</p>
-                                  <p className="text-sm text-gray-500">{signer.email}</p>
+                                  <p className="font-medium">{getSignerName(signer)}</p>
+                                  <p className="text-sm text-gray-500">{getSignerEmail(signer)}</p>
                                 </div>
                                 <div>
-                                  {signer.status === "signed" ? (
+                                  {getSignerStatus(signer) === "signed" ? (
                                     <Badge variant="outline" className="text-green-500 border-green-300">Unterschrieben</Badge>
                                   ) : (
                                     <Badge variant="outline" className="text-amber-500 border-amber-300">Ausstehend</Badge>
@@ -650,8 +703,8 @@ const ViewDocument = () => {
                                       <div className="h-2 w-2 bg-green-500 rounded-full"></div>
                                     </div>
                                     <div>
-                                      <p className="font-medium">{signer.name} hat das Dokument unterschrieben</p>
-                                      <p className="text-xs text-gray-400 mt-1">{signer.timestamp?.toLocaleString()}</p>
+                                      <p className="font-medium">{getSignerName(signer)} hat das Dokument unterschrieben</p>
+                                      <p className="text-xs text-gray-400 mt-1">{getSignerTimestamp(signer)?.toLocaleString() || 'N/A'}</p>
                                     </div>
                                   </div>
                                 ))}
@@ -671,16 +724,16 @@ const ViewDocument = () => {
                                 {document.signers.map((signer, i) => (
                                   <div key={i} className="flex">
                                     <div className="mt-1 mr-3">
-                                      <div className={`h-2 w-2 ${signer.status === "signed" ? "bg-green-500" : "bg-gray-300"} rounded-full`}></div>
+                                      <div className={`h-2 w-2 ${getSignerStatus(signer) === "signed" ? "bg-green-500" : "bg-gray-300"} rounded-full`}></div>
                                     </div>
                                     <div>
                                       <p className="font-medium">
-                                        {signer.status === "signed" 
-                                          ? `${signer.name} hat das Dokument unterschrieben` 
-                                          : `Warte auf ${signer.name}`}
+                                        {getSignerStatus(signer) === "signed" 
+                                          ? `${getSignerName(signer)} hat das Dokument unterschrieben` 
+                                          : `Warte auf ${getSignerName(signer)}`}
                                       </p>
-                                      {signer.timestamp && (
-                                        <p className="text-xs text-gray-400 mt-1">{signer.timestamp.toLocaleString()}</p>
+                                      {getSignerTimestamp(signer) && (
+                                        <p className="text-xs text-gray-400 mt-1">{getSignerTimestamp(signer)?.toLocaleString()}</p>
                                       )}
                                     </div>
                                   </div>
