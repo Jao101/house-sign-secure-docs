@@ -157,14 +157,14 @@ const ViewDocument = () => {
     const newStatus = (allSigned && allFieldsSigned) ? "completed" : "awaiting_signatures";
     
     updateDocument(document.id, { 
-      signers: updatedSigners,
+      signers: updatedSigners as Array<string | { email: string; name: string; status: string; timestamp: Date | null }>,
       status: newStatus,
       signingFields: updatedSigningFields.length > 0 ? updatedSigningFields : undefined
     });
     
     setDocument({
       ...document,
-      signers: updatedSigners,
+      signers: updatedSigners as Array<string | { email: string; name: string; status: string; timestamp: Date | null }>,
       status: newStatus,
       signingFields: updatedSigningFields.length > 0 ? updatedSigningFields : document.signingFields
     });
@@ -231,14 +231,14 @@ const ViewDocument = () => {
     const newStatus = (allSigned && allFieldsSigned) ? "completed" : "awaiting_signatures";
     
     updateDocument(document.id, { 
-      signers: updatedSigners,
+      signers: updatedSigners as Array<string | { email: string; name: string; status: string; timestamp: Date | null }>,
       status: newStatus,
       signingFields: updatedSigningFields
     });
     
     setDocument({
       ...document,
-      signers: updatedSigners,
+      signers: updatedSigners as Array<string | { email: string; name: string; status: string; timestamp: Date | null }>,
       status: newStatus,
       signingFields: updatedSigningFields
     });
@@ -279,13 +279,13 @@ const ViewDocument = () => {
     const newStatus = allSigned ? "completed" : "awaiting_signatures";
     
     updateDocument(document.id, { 
-      signers: updatedSigners,
+      signers: updatedSigners as Array<string | { email: string; name: string; status: string; timestamp: Date | null }>,
       status: newStatus
     });
     
     setDocument({
       ...document,
-      signers: updatedSigners,
+      signers: updatedSigners as Array<string | { email: string; name: string; status: string; timestamp: Date | null }>,
       status: newStatus
     });
     

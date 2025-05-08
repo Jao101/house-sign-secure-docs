@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ export interface Document {
   title: string;
   status: "draft" | "awaiting_signatures" | "completed";
   updatedAt: Date;
-  signers: string[] | { email: string; name: string; status: string; timestamp: Date | null }[];
+  signers: Array<string | { email: string; name: string; status: string; timestamp: Date | null }>;
   fileId?: string;
   owner?: string; // Added owner to track who created the document
   signingFields?: SigningField[]; // Added signing fields
