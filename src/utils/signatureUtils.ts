@@ -1,4 +1,3 @@
-
 import { SigningField } from "@/components/DocumentCard";
 
 /**
@@ -101,4 +100,3 @@ export const generateShareLink = (documentId: string, baseUrl: string): string =
   
   return `${baseUrl}/document/${documentId}?token=${shareToken}`;
 };
-

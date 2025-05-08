@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -742,4 +741,3 @@ const ViewDocument = () => {
 };
 
 export default ViewDocument;
-

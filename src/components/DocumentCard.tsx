@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +13,8 @@ export interface SigningField {
   height: number;
   page: number;
   signedBy: string | null;
+  signatureImageData?: string | null;
+  signedTimestamp?: Date | null;
 }
 
 export interface Document {
